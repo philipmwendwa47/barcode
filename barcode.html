@@ -1,113 +1,137 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barcode Scanner</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
-        #scanner-container {
-            position: relative;
-            width: 100%;
-            max-width: 400px;
-            height: 300px;
-            margin: auto;
-            background: black;
-            overflow: hidden;
-        }
-        canvas, video {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        #green-line {
-            position: absolute;
-            width: 100%;
-            height: 4px;
-            background: limegreen;
-            top: 0;
-            animation: scan 2s linear infinite;
-        }
-        @keyframes scan {
-            0% { top: 0; }
-            100% { top: 100%; }
-        }
-        #result {
-            margin-top: 20px;
-            font-size: 20px;
-            font-weight: bold;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barcode Scanner</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+    }
+    #camera-container {
+      width: 300px;
+      height: 300px;
+      overflow: hidden;
+      position: relative;
+      border: 2px solid #000;
+    }
+    #camera-view {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #scan-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background-color: green;
+      animation: scan 2s linear infinite;
+    }
+    @keyframes scan {
+      0% { top: 0; }
+      100% { top: 100%; }
+    }
+    #result {
+      margin-top: 20px;
+      font-size: 1.5em;
+    }
+    #switch-camera {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 1em;
+    }
+  </style>
 </head>
 <body>
-    <h2>Barcode Scanner</h2>
-    <div id="scanner-container">
-        <div id="green-line"></div>
-    </div>
-    <button onclick="toggleCamera()">Switch Camera</button>
-    <p id="result">Scan a barcode...</p>
+  <div id="camera-container">
+    <video id="camera-view"></video>
+    <div id="scan-line"></div>
+  </div>
+  <div id="result">Scanned Code: </div>
+  <button id="switch-camera">Switch Camera</button>
 
-    <script>
-        let currentCamera = 0;
-        let cameras = [];
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <script>
+    let currentCamera = "environment"; // Start with the back camera
+    let scannerActive = false;
 
-        async function startScanner() {
-            if (cameras.length === 0) {
-                let devices = await navigator.mediaDevices.enumerateDevices();
-                cameras = devices.filter(device => device.kind === 'videoinput');
-            }
-
-            Quagga.init({
-                inputStream: {
-                    type: "LiveStream",
-                    constraints: {
-                        facingMode: currentCamera ? "user" : "environment"
-                    },
-                    target: document.getElementById("scanner-container"),
-                },
-                decoder: {
-                    readers: ["code_128_reader", "ean_reader", "ean_8_reader", "upc_reader", "upc_e_reader", "code_39_reader", "code_39_vin_reader", "codabar_reader", "i2of5_reader", "2of5_reader", "code_93_reader"]
-                }
-            }, function(err) {
-                if (err) {
-                    console.error("Quagga init error:", err);
-                    return;
-                }
-                Quagga.start();
-            });
-
-            Quagga.onDetected(function(data) {
-                Quagga.stop();
-                document.getElementById("result").innerText = "Scanned Code: " + data.codeResult.code;
-                playBeep();
-                setTimeout(startScanner, 1500);
-            });
+    // Initialize QuaggaJS
+    function initScanner(camera) {
+      Quagga.init({
+        inputStream: {
+          name: "Live",
+          type: "LiveStream",
+          target: document.querySelector("#camera-view"),
+          constraints: {
+            facingMode: camera,
+          },
+        },
+        decoder: {
+          readers: ["code_128_reader", "ean_reader", "upc_reader", "code_39_reader"], // Add more readers if needed
+        },
+      }, function (err) {
+        if (err) {
+          console.error("Error initializing Quagga:", err);
+          return;
         }
+        Quagga.start();
+        scannerActive = true;
+      });
 
-        async function toggleCamera() {
-            if (cameras.length === 0) {
-                cameras = await navigator.mediaDevices.enumerateDevices();
-                cameras = cameras.filter(device => device.kind === 'videoinput');
-            }
+      Quagga.onDetected(function (result) {
+        const code = result.codeResult.code;
+        document.getElementById("result").textContent = `Scanned Code: ${code}`;
+        beep(); // Play a beep sound
+        highlightBarcode(result.box);
+      });
+    }
 
-            if (cameras.length > 1) {
-                currentCamera = (currentCamera + 1) % cameras.length;
-                Quagga.stop();
-                startScanner();
-            }
-        }
+    // Switch between front and back camera
+    document.getElementById("switch-camera").addEventListener("click", function () {
+      currentCamera = currentCamera === "environment" ? "user" : "environment";
+      if (scannerActive) {
+        Quagga.stop();
+        initScanner(currentCamera);
+      }
+    });
 
-        function playBeep() {
-            let beep = new Audio("beep.wav"); // Ensure "beep.wav" is in the same folder as this file
-            beep.play();
-        }
+    // Highlight the barcode
+    function highlightBarcode(box) {
+      const canvas = Quagga.canvas.dom.image;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(box[0][0], box[0][1]);
+      for (let i = 1; i < box.length; i++) {
+        ctx.lineTo(box[i][0], box[i][1]);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
 
-        startScanner();
-    </script>
+    // Play a beep sound
+    function beep() {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      oscillator.type = "square";
+      oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
+      oscillator.connect(audioContext.destination);
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 0.1);
+    }
+
+    // Start the scanner
+    initScanner(currentCamera);
+  </script>
 </body>
 </html>
