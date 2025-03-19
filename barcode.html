@@ -4,124 +4,93 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode Scanner</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <script src="https://unpkg.com/quagga"></script>
     <style>
         body {
             text-align: center;
             font-family: Arial, sans-serif;
         }
         #camera-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        #canvas {
-            display: none;
-        }
-        #captured-image {
+            position: relative;
             width: 100%;
             max-width: 400px;
-            display: none;
-            border: 2px solid #ddd;
-            margin: 10px 0;
+            margin: auto;
         }
-        #scan-btn, #back-btn {
-            display: none;
-            margin: 10px;
-            padding: 10px 15px;
-            font-size: 16px;
-            border: none;
-            background: #007bff;
-            color: white;
-            cursor: pointer;
-            border-radius: 5px;
+        #camera {
+            width: 100%;
+            height: auto;
+            display: block;
         }
-        #back-btn {
-            background: #dc3545;
+        #frame {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 80%;
+            height: 60%;
+            transform: translate(-50%, -50%);
+            border: 4px solid green;
+            box-sizing: border-box;
         }
-        #error-message {
-            color: red;
+        #controls {
+            margin-top: 10px;
+        }
+        #barcode-result {
+            margin-top: 20px;
+            font-size: 18px;
             font-weight: bold;
-            display: none;
         }
     </style>
 </head>
 <body>
-
     <h1>Barcode Scanner</h1>
-    
     <div id="camera-container">
-        <video id="camera" autoplay playsinline></video>
-        <button id="capture-btn">Capture</button>
-        <img id="captured-image">
-        <canvas id="canvas"></canvas>
-        <button id="scan-btn">Scan</button>
-        <button id="back-btn">Back</button>
+        <video id="camera" autoplay></video>
+        <div id="frame"></div>
     </div>
-    
+    <div id="controls">
+        <button onclick="captureImage()">Capture</button>
+        <button onclick="scanBarcode()">Scan</button>
+        <button onclick="restartCamera()">Back</button>
+    </div>
+    <canvas id="canvas" style="display:none;"></canvas>
     <p id="barcode-result"></p>
-    <p id="error-message">No barcode found. Try again.</p>
-
+    
     <script>
-        const video = document.getElementById("camera");
-        const canvas = document.getElementById("canvas");
-        const context = canvas.getContext("2d");
-        const capturedImage = document.getElementById("captured-image");
-        const captureBtn = document.getElementById("capture-btn");
-        const scanBtn = document.getElementById("scan-btn");
-        const backBtn = document.getElementById("back-btn");
-        const barcodeResult = document.getElementById("barcode-result");
-        const errorMessage = document.getElementById("error-message");
+        let video = document.getElementById("camera");
+        let canvas = document.getElementById("canvas");
+        let ctx = canvas.getContext("2d");
+        let constraints = { video: { facingMode: "environment" } };
 
-        // Start the camera
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then(stream => video.srcObject = stream)
-            .catch(err => console.error("Camera access denied:", err));
+        // Start camera
+        navigator.mediaDevices.getUserMedia(constraints)
+            .then(stream => { video.srcObject = stream; })
+            .catch(error => console.error("Camera error:", error));
 
-        // Capture Image
-        captureBtn.addEventListener("click", () => {
+        function captureImage() {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            capturedImage.src = canvas.toDataURL("image/png");
-            capturedImage.style.display = "block";
-            scanBtn.style.display = "inline-block";
-            backBtn.style.display = "inline-block";
-            captureBtn.style.display = "none";
-            video.style.display = "none";
-        });
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        }
 
-        // Scan Barcode
-        scanBtn.addEventListener("click", () => {
+        function scanBarcode() {
+            let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             Quagga.decodeSingle({
-                src: capturedImage.src,
+                src: canvas.toDataURL(),
                 numOfWorkers: 0,
-                inputStream: { size: 800 },
-                decoder: { readers: ["code_128_reader", "ean_reader", "ean_8_reader", "upc_reader", "code_39_reader"] }
-            }, result => {
+                decoder: { readers: ["code_128_reader", "ean_reader", "upc_reader", "code_39_reader"] },
+            }, function(result) {
                 if (result && result.codeResult) {
-                    barcodeResult.textContent = "Barcode: " + result.codeResult.code;
-                    errorMessage.style.display = "none";
+                    document.getElementById("barcode-result").innerText = "Barcode: " + result.codeResult.code;
                     new Audio("https://www.soundjay.com/button/beep-07.wav").play();
                 } else {
-                    barcodeResult.textContent = "";
-                    errorMessage.style.display = "block";
+                    alert("No barcode found. Try again.");
                 }
             });
-        });
+        }
 
-        // Go Back to Camera
-        backBtn.addEventListener("click", () => {
-            capturedImage.style.display = "none";
-            scanBtn.style.display = "none";
-            backBtn.style.display = "none";
-            captureBtn.style.display = "inline-block";
-            video.style.display = "block";
-            barcodeResult.textContent = "";
-            errorMessage.style.display = "none";
-        });
-
+        function restartCamera() {
+            document.getElementById("barcode-result").innerText = "";
+        }
     </script>
-
 </body>
 </html>
