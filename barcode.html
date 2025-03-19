@@ -12,8 +12,8 @@
       text-align: center;
     }
     #interactive {
-      width: 300px; /* Fixed width for square */
-      height: 300px; /* Fixed height for square */
+      width: 300px; /* Square size */
+      height: 300px; /* Square size */
       margin: 0 auto; /* Center the square */
       border: 1px solid #ccc;
       position: relative;
@@ -34,6 +34,12 @@
       padding: 10px 20px;
       font-size: 1em;
       cursor: pointer;
+    }
+    .highlight {
+      position: absolute;
+      border: 3px solid green; /* Green border for highlighting */
+      box-shadow: 0 0 10px green; /* Glow effect */
+      pointer-events: none; /* Ensure it doesn't interfere with clicks */
     }
   </style>
 </head>
@@ -64,8 +70,17 @@
           },
         },
         decoder: {
-          readers: ["code_128_reader", "ean_reader", "upc_reader"] // Supported barcode formats
-        }
+          readers: [
+            "code_128_reader", // GS1-128 is a subset of Code 128
+            "ean_reader",
+            "upc_reader",
+            "code_39_reader",
+            "code_93_reader",
+            "codabar_reader"
+          ]
+        },
+        locate: true, // Enable locating barcodes in the image
+        numOfWorkers: 4 // Use more workers for better performance
       }, function (err) {
         if (err) {
           console.error(err);
@@ -92,8 +107,12 @@
     // Event listener for barcode detection
     Quagga.onDetected(function (result) {
       const barcode = result.codeResult.code;
-      document.getElementById('barcode').textContent = barcode;
-      console.log("Barcode detected: ", barcode);
+      if (barcode.startsWith("89254") && barcode.length === 20) { // Validate Safaricom barcode
+        document.getElementById('barcode').textContent = barcode;
+        console.log("Barcode detected: ", barcode);
+      } else {
+        console.log("Invalid barcode format: ", barcode);
+      }
     });
 
     // Event listener for the switch camera button
@@ -102,6 +121,22 @@
       currentFacingMode = currentFacingMode === "environment" ? "user" : "environment"; // Toggle between front and back camera
       initializeQuagga(currentFacingMode); // Reinitialize Quagga with the new camera
       console.log("Switched to camera: " + currentFacingMode);
+    });
+
+    // Highlight the barcode being scanned
+    Quagga.onProcessed(function (result) {
+      const drawingCanvas = Quagga.canvas.dom.overlay;
+      const canvasCtx = drawingCanvas.getContext('2d');
+      canvasCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+
+      if (result) {
+        const { boxes } = result;
+        if (boxes) {
+          boxes.forEach(box => {
+            Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, canvasCtx, { color: 'green', lineWidth: 3 });
+          });
+        }
+      }
     });
   </script>
 </body>
