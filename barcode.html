@@ -22,6 +22,12 @@
       font-size: 1.5em;
       font-weight: bold;
     }
+    #switch-camera {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 1em;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -29,11 +35,16 @@
     <h1>Barcode Scanner</h1>
     <div id="interactive"></div>
     <div id="result">Scanned Barcode: <span id="barcode"></span></div>
+    <button id="switch-camera">Switch Camera</button>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    let currentFacingMode = "environment"; // Start with the rear camera
+    let isQuaggaInitialized = false;
+
+    // Function to initialize Quagga
+    function initializeQuagga(facingMode) {
       Quagga.init({
         inputStream: {
           name: "Live",
@@ -42,7 +53,7 @@
           constraints: {
             width: 480,
             height: 320,
-            facingMode: "user" // Use the front camera
+            facingMode: facingMode // Use the selected camera
           },
         },
         decoder: {
@@ -53,15 +64,37 @@
           console.error(err);
           return;
         }
-        console.log("Quagga initialized successfully.");
+        console.log("Quagga initialized successfully with facingMode: " + facingMode);
         Quagga.start();
+        isQuaggaInitialized = true;
       });
+    }
 
-      Quagga.onDetected(function (result) {
-        const barcode = result.codeResult.code;
-        document.getElementById('barcode').textContent = barcode;
-        console.log("Barcode detected: ", barcode);
-      });
+    // Function to stop Quagga
+    function stopQuagga() {
+      if (isQuaggaInitialized) {
+        Quagga.stop();
+        console.log("Quagga stopped.");
+        isQuaggaInitialized = false;
+      }
+    }
+
+    // Initialize Quagga with the default camera (rear)
+    initializeQuagga(currentFacingMode);
+
+    // Event listener for barcode detection
+    Quagga.onDetected(function (result) {
+      const barcode = result.codeResult.code;
+      document.getElementById('barcode').textContent = barcode;
+      console.log("Barcode detected: ", barcode);
+    });
+
+    // Event listener for the switch camera button
+    document.getElementById('switch-camera').addEventListener('click', function () {
+      stopQuagga(); // Stop the current Quagga instance
+      currentFacingMode = currentFacingMode === "environment" ? "user" : "environment"; // Toggle between front and back camera
+      initializeQuagga(currentFacingMode); // Reinitialize Quagga with the new camera
+      console.log("Switched to camera: " + currentFacingMode);
     });
   </script>
 </body>
